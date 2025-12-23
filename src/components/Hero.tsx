@@ -1,8 +1,12 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkles, ArrowRight, BookOpen, Brain } from "lucide-react";
 
-const Hero = () => {
+const Hero = memo(() => {
+  const prefersReducedMotion = useReducedMotion();
+  const animation = prefersReducedMotion ? { opacity: 1, y: 0 } : undefined;
+  
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 py-20">
       {/* Background elements */}
@@ -108,6 +112,8 @@ const Hero = () => {
       </div>
     </section>
   );
-};
+});
+
+Hero.displayName = "Hero";
 
 export default Hero;

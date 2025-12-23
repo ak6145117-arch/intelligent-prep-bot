@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { memo } from "react";
 import { 
   MessageSquare, 
   Clock, 
@@ -41,7 +42,7 @@ const features = [
   },
 ];
 
-const Features = () => {
+const Features = memo(() => {
   return (
     <section className="py-24 px-4 relative" id="features">
       {/* Background */}
@@ -52,7 +53,7 @@ const Features = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
@@ -73,11 +74,11 @@ const Features = () => {
               key={index}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: index * 0.05 }}
               className="group"
             >
-              <div className="glass-card rounded-2xl p-6 h-full hover:shadow-glow transition-all duration-500 hover:-translate-y-1">
+              <div className="glass-card rounded-2xl p-6 h-full hover:shadow-glow transition-all duration-300 hover:-translate-y-1">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                   <feature.icon className="w-6 h-6 text-primary" />
                 </div>
@@ -90,6 +91,8 @@ const Features = () => {
       </div>
     </section>
   );
-};
+});
+
+Features.displayName = "Features";
 
 export default Features;
