@@ -1,5 +1,4 @@
-import { motion, useReducedMotion } from "framer-motion";
-import { memo } from "react";
+import { motion } from "framer-motion";
 import { 
   MessageSquare, 
   Clock, 
@@ -42,7 +41,7 @@ const features = [
   },
 ];
 
-const Features = memo(() => {
+const Features = () => {
   return (
     <section className="py-24 px-4 relative" id="features">
       {/* Background */}
@@ -91,8 +90,6 @@ const Features = memo(() => {
       </div>
     </section>
   );
-});
-
-Features.displayName = "Features";
+};
 
 export default Features;

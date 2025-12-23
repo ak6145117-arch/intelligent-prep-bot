@@ -1,5 +1,4 @@
-import { motion, useReducedMotion } from "framer-motion";
-import { memo } from "react";
+import { motion } from "framer-motion";
 import { Star, Quote } from "lucide-react";
 
 const testimonials = [
@@ -26,7 +25,7 @@ const testimonials = [
   },
 ];
 
-const Testimonials = memo(() => {
+const Testimonials = () => {
   return (
     <section className="py-24 px-4 relative" id="testimonials">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.03),transparent_70%)]" />
@@ -91,8 +90,6 @@ const Testimonials = memo(() => {
       </div>
     </section>
   );
-});
-
-Testimonials.displayName = "Testimonials";
+};
 
 export default Testimonials;
