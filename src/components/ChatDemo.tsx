@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Send, Bot, User, Sparkles } from "lucide-react";
+import { Send, Bot, User, Sparkles, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: number;
@@ -9,27 +10,20 @@ interface Message {
   content: string;
 }
 
-const demoConversations = [
-  {
-    question: "Can you explain the Pythagorean theorem?",
-    answer: "The Pythagorean theorem states that in a right triangle, the square of the hypotenuse (c) equals the sum of squares of the other two sides (a and b): a² + b² = c². For example, if a=3 and b=4, then c=5 because 9+16=25. This is fundamental in geometry and has countless real-world applications!",
-  },
-  {
-    question: "What causes photosynthesis?",
-    answer: "Photosynthesis is how plants convert sunlight into energy! Plants use chlorophyll (the green pigment) to capture light energy, then combine CO₂ from air and H₂O from soil to create glucose (sugar) for energy. The bonus? They release oxygen as a byproduct, which we breathe! 🌱",
-  },
-  {
-    question: "Help me understand World War II's main causes",
-    answer: "WWII (1939-1945) had several key causes: 1) Treaty of Versailles left Germany humiliated with harsh penalties, 2) Rise of fascism in Germany, Italy & Japan, 3) Global economic depression, 4) Policy of appeasement that allowed Hitler's expansion, and 5) Germany's invasion of Poland. These factors combined created the deadliest conflict in history.",
-  },
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/study-chat`;
+
+const suggestedQuestions = [
+  "Explain the Pythagorean theorem",
+  "What causes photosynthesis?",
+  "Explain World War II's main causes",
 ];
 
 const ChatDemo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [currentDemo, setCurrentDemo] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,29 +33,115 @@ const ChatDemo = () => {
     scrollToBottom();
   }, [messages]);
 
-  const simulateResponse = async (question: string) => {
-    setIsTyping(true);
+  const streamChat = async (userMessages: Message[]) => {
+    setIsLoading(true);
     
-    // Find matching demo or use default
-    const demo = demoConversations.find(d => 
-      question.toLowerCase().includes(d.question.toLowerCase().split(" ")[3]) ||
-      question.toLowerCase().includes(d.question.toLowerCase().split(" ")[4])
-    ) || demoConversations[currentDemo % demoConversations.length];
-    
-    // Simulate typing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setIsTyping(false);
-    setMessages(prev => [
-      ...prev,
-      { id: Date.now(), role: "assistant", content: demo.answer }
-    ]);
-    setCurrentDemo(prev => prev + 1);
+    // Add empty assistant message that we'll update
+    const assistantId = Date.now() + 1;
+    setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+
+    try {
+      const response = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: userMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Request failed with status ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+      let assistantContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        textBuffer += decoder.decode(value, { stream: true });
+
+        // Process line-by-line
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => 
+                prev.map(m => 
+                  m.id === assistantId ? { ...m, content: assistantContent } : m
+                )
+              );
+            }
+          } catch {
+            // Incomplete JSON, put it back
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Final flush
+      if (textBuffer.trim()) {
+        for (let raw of textBuffer.split("\n")) {
+          if (!raw || raw.startsWith(":") || raw.trim() === "") continue;
+          if (!raw.startsWith("data: ")) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => 
+                prev.map(m => 
+                  m.id === assistantId ? { ...m, content: assistantContent } : m
+                )
+              );
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      // Remove the empty assistant message
+      setMessages(prev => prev.filter(m => m.id !== assistantId));
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to get response",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now(),
@@ -69,21 +149,25 @@ const ChatDemo = () => {
       content: input.trim(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput("");
     
-    await simulateResponse(input);
+    await streamChat(newMessages);
   };
 
   const handleQuickQuestion = async (question: string) => {
+    if (isLoading) return;
+    
     const userMessage: Message = {
       id: Date.now(),
       role: "user",
       content: question,
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    await simulateResponse(question);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    await streamChat(newMessages);
   };
 
   return (
@@ -102,7 +186,7 @@ const ChatDemo = () => {
             Ask <span className="gradient-text">Anything</span>
           </h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Experience how our AI can help you understand any topic. Try asking a question!
+            Experience real AI-powered study help. Ask any question about any subject!
           </p>
         </motion.div>
 
@@ -121,7 +205,7 @@ const ChatDemo = () => {
             </div>
             <div>
               <h3 className="font-semibold">StudyBuddy AI</h3>
-              <p className="text-xs text-muted-foreground">Always here to help</p>
+              <p className="text-xs text-muted-foreground">Powered by AI</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -135,16 +219,17 @@ const ChatDemo = () => {
               <div className="text-center py-8">
                 <Bot className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
                 <p className="text-muted-foreground mb-6">
-                  Hi! I'm here to help you study. Ask me anything!
+                  Hi! I'm your AI study buddy. Ask me anything about any subject!
                 </p>
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {demoConversations.map((demo, index) => (
+                  {suggestedQuestions.map((question, index) => (
                     <button
                       key={index}
-                      onClick={() => handleQuickQuestion(demo.question)}
-                      className="text-sm px-4 py-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      onClick={() => handleQuickQuestion(question)}
+                      disabled={isLoading}
+                      className="text-sm px-4 py-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
                     >
-                      {demo.question}
+                      {question}
                     </button>
                   ))}
                 </div>
@@ -172,7 +257,14 @@ const ChatDemo = () => {
                         : "bg-secondary text-secondary-foreground rounded-bl-md"
                     }`}
                   >
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {message.content || (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Thinking...
+                        </span>
+                      )}
+                    </p>
                   </div>
                   {message.role === "user" && (
                     <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
@@ -182,25 +274,6 @@ const ChatDemo = () => {
                 </motion.div>
               ))}
             </AnimatePresence>
-
-            {isTyping && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex gap-3"
-              >
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-4 h-4 text-primary" />
-                </div>
-                <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                </div>
-              </motion.div>
-            )}
             <div ref={messagesEndRef} />
           </div>
 
@@ -211,11 +284,12 @@ const ChatDemo = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your question..."
-                className="flex-1 bg-secondary/50 rounded-xl px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Ask any study question..."
+                disabled={isLoading}
+                className="flex-1 bg-secondary/50 rounded-xl px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
               />
-              <Button type="submit" size="icon" className="rounded-xl h-12 w-12" disabled={isTyping}>
-                <Send className="w-5 h-5" />
+              <Button type="submit" size="icon" className="rounded-xl h-12 w-12" disabled={isLoading || !input.trim()}>
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </Button>
             </div>
           </form>
