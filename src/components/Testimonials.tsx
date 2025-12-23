@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { memo } from "react";
 import { Star, Quote } from "lucide-react";
 
 const testimonials = [
@@ -25,7 +26,7 @@ const testimonials = [
   },
 ];
 
-const Testimonials = () => {
+const Testimonials = memo(() => {
   return (
     <section className="py-24 px-4 relative" id="testimonials">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.03),transparent_70%)]" />
@@ -35,7 +36,7 @@ const Testimonials = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
@@ -55,10 +56,10 @@ const Testimonials = () => {
               key={index}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: index * 0.05 }}
             >
-              <div className="glass-card rounded-2xl p-6 h-full relative group hover:shadow-glow transition-all duration-500">
+              <div className="glass-card rounded-2xl p-6 h-full relative group hover:shadow-glow transition-all duration-300">
                 <Quote className="absolute top-6 right-6 w-8 h-8 text-primary/10 group-hover:text-primary/20 transition-colors" />
                 
                 {/* Rating */}
@@ -90,6 +91,8 @@ const Testimonials = () => {
       </div>
     </section>
   );
-};
+});
+
+Testimonials.displayName = "Testimonials";
 
 export default Testimonials;
