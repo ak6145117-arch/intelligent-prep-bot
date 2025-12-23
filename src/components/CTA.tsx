@@ -1,8 +1,11 @@
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap } from "lucide-react";
-
+import { useAuth } from "@/contexts/AuthContext";
 const CTA = () => {
+  const { user } = useAuth();
+  
   return (
     <section className="py-24 px-4 relative overflow-hidden">
       {/* Background effects */}
@@ -31,12 +34,14 @@ const CTA = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button variant="hero" size="lg" className="group">
-              Get Started Free
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <Button variant="hero" size="lg" className="group" asChild>
+              <Link to={user ? "/study" : "/auth"}>
+                {user ? "Continue Studying" : "Get Started Free"}
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
             </Button>
-            <Button variant="hero-secondary" size="lg">
-              View Pricing
+            <Button variant="hero-secondary" size="lg" asChild>
+              <a href="#demo">Try Demo</a>
             </Button>
           </div>
           
