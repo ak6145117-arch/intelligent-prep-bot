@@ -6,6 +6,7 @@ import { Send, Bot, User, Sparkles, Loader2, Plus, MessageSquare, Trash2, LogOut
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import DeleteAccountDialog from "@/components/DeleteAccountDialog";
 
 interface Message {
   id: string;
@@ -332,7 +333,7 @@ const Study = () => {
         </div>
 
         {/* User Section */}
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-1">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2 px-2">
             <User className="w-4 h-4" />
             <span className="truncate">{user?.email}</span>
@@ -341,6 +342,7 @@ const Study = () => {
             <LogOut className="w-4 h-4 mr-2" />
             Sign Out
           </Button>
+          <DeleteAccountDialog userEmail={user?.email || ""} />
         </div>
       </div>
 
