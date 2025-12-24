@@ -155,6 +155,14 @@ const Study = () => {
   const streamChat = async (sessionId: string, userMessages: Message[]) => {
     setIsLoading(true);
 
+    // Get the user's JWT token for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast({ title: "Error", description: "Authentication required. Please sign in again.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+
     const assistantId = crypto.randomUUID();
     setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
 
@@ -163,7 +171,7 @@ const Study = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           messages: userMessages.map((m) => ({ role: m.role, content: m.content })),
