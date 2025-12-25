@@ -75,33 +75,24 @@ serve(async (req) => {
   }
 
   try {
-    // Authenticate the user
+    // Optional authentication - allow both authenticated and anonymous users
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error("Missing Authorization header");
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    let userId = 'anonymous';
     
-    if (authError || !user) {
-      console.error("Authentication failed:", authError?.message);
-      return new Response(
-        JSON.stringify({ error: "Invalid or expired authentication" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    if (authHeader) {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: authHeader } } }
       );
+
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user) {
+        userId = user.id;
+      }
     }
 
-    console.log("Authenticated user:", user.id);
+    console.log("Processing request for user:", userId);
 
     // Parse and validate request body
     let requestBody: unknown;
@@ -142,7 +133,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Processing study chat request for user:", user.id, "with messages:", validatedMessages.length);
+    console.log("Processing study chat request for user:", userId, "with messages:", validatedMessages.length);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -208,7 +199,7 @@ You can help with subjects including but not limited to:
       });
     }
 
-    console.log("Streaming response from AI gateway for user:", user.id);
+    console.log("Streaming response from AI gateway for user:", userId);
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

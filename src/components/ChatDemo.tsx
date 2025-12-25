@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Send, Bot, User, Sparkles, Loader2, LogIn } from "lucide-react";
+import { Send, Bot, User, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
 interface Message {
   id: number;
   role: "user" | "assistant";
@@ -25,7 +23,6 @@ const ChatDemo = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { session, loading: authLoading } = useAuth();
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -34,7 +31,7 @@ const ChatDemo = () => {
     scrollToBottom();
   }, [messages]);
 
-  const streamChat = async (userMessages: Message[], userToken: string | null) => {
+  const streamChat = async (userMessages: Message[]) => {
     setIsLoading(true);
     
     // Add empty assistant message that we'll update
@@ -42,18 +39,11 @@ const ChatDemo = () => {
     setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "" }]);
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      
-      // Add authorization header if user is authenticated
-      if (userToken) {
-        headers["Authorization"] = `Bearer ${userToken}`;
-      }
-
       const response = await fetch(CHAT_URL, {
         method: "POST",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           messages: userMessages.map(m => ({ role: m.role, content: m.content })),
         }),
@@ -148,7 +138,7 @@ const ChatDemo = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !session) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now(),
@@ -160,11 +150,11 @@ const ChatDemo = () => {
     setMessages(newMessages);
     setInput("");
     
-    await streamChat(newMessages, session.access_token);
+    await streamChat(newMessages);
   };
 
   const handleQuickQuestion = async (question: string) => {
-    if (isLoading || !session) return;
+    if (isLoading) return;
     
     const userMessage: Message = {
       id: Date.now(),
@@ -174,55 +164,8 @@ const ChatDemo = () => {
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-    await streamChat(newMessages, session.access_token);
+    await streamChat(newMessages);
   };
-
-  // Show login prompt if not authenticated
-  if (!authLoading && !session) {
-    return (
-      <section className="py-24 px-4" id="demo">
-        <div className="container mx-auto max-w-4xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <span className="text-accent font-semibold text-sm uppercase tracking-wider">Try It Now</span>
-            <h2 className="text-3xl md:text-5xl font-bold mt-3 mb-4">
-              Ask <span className="gradient-text">Anything</span>
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Experience real AI-powered study help. Ask any question about any subject!
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="glass-card rounded-3xl overflow-hidden p-12 text-center"
-          >
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <LogIn className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="text-2xl font-bold mb-4">Sign In to Start Chatting</h3>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-              Create a free account or sign in to access our AI-powered study assistant and get personalized help with any subject.
-            </p>
-            <Link to="/auth">
-              <Button size="lg" className="rounded-xl">
-                <LogIn className="w-5 h-5 mr-2" />
-                Sign In to Continue
-              </Button>
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="py-24 px-4" id="demo">
